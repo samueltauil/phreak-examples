@@ -9,7 +9,7 @@ You can run the benchmark by building the project using Maven:
 
 Then run the generated shaded jar:
 
-    java -jar target/benchmark-1.0.0-SNAPSHOT-shaded.jar
+    java -jar target/benchmark-1.0.0-SNAPSHOT.jar
 
 Results
 =======
