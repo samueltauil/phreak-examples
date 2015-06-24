@@ -28,6 +28,7 @@ This project builds upon the outstanding contributions of {marek} and the Red Ha
 
 === Directory Structure
 
+The project have the `doc` folder which contains this description of the architecture and implementation details. The implementation of the Benchmark itself and domain classes used by rules are based within `src/main/java/org/kie/examples/phreak`. Rules used in the project are saved within `src/main/resources/org/kie/examples/phreak` in DRL files. There is a test case implemented within `src/test/java/org/kie/examples/phreak`.
 
 [source,console]
 ------
@@ -76,7 +77,7 @@ benchmark
 │                       └── phreak
 │                           └── BenchmarkTest.java
 └── target
-    ├── benchmark-1.0.0-SNAPSHOT.jar
+    └── benchmark-1.0.0-SNAPSHOT.jar
 ------
 
 == Pre-Requisites
@@ -281,6 +282,226 @@ With PHREAK AgendaGroups and salience now become useful performance tools. The r
 
 == Analyzing Rules
 
+We have four types of rules to cover different topics of PHREAK algorithm to compare performance results with RETEOO implementation. It's important to note that are four KieBase defined in `kmodule.xml` for each example case as following:
+
+[source,xml]
+-------
+<?xml version="1.0" encoding="UTF-8"?>
+<kmodule xmlns="http://jboss.org/kie/6.0.0/kmodule">
+
+  <kbase name="laziness3KBase" packages="org.kie.examples.phreak.laziness3">
+    <ksession name="laziness3KSession"/>
+  </kbase>
+
+  <kbase name="laziness6KBase" packages="org.kie.examples.phreak.laziness6">
+    <ksession name="laziness6KSession"/>
+  </kbase>
+
+  <kbase name="groupingKBase" packages="org.kie.examples.phreak.grouping">
+    <ksession name="groupingKSession"/>
+  </kbase>
+
+  <kbase name="modificationKBase" packages="org.kie.examples.phreak.modification">
+    <ksession name="modificationKSession"/>
+  </kbase>
+
+</kmodule>
+-------
+
+=== Grouping
+
+We have 3 rules in the grouping DRL file, the main point here is the usage of `agenda-group` attribute. In PHREAK the evaluation of rules only happen in the active Agenda Group and even within an active group it will attempt to avoid the evaluation (by using `salience`) of rules that do not result in an execution firing.
+
+[source,java]
+------
+rule gold_account
+salience 200
+agenda-group "gold"
+when
+  account: Account()
+  Number(this >= 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Gold account: " + account);
+end
+
+rule silver_account
+salience 100
+agenda-group "silver"
+when
+  account: Account()
+  Number(this >= 25000 && this < 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 25000 && this < 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Silver account: " + account);
+end
+
+rule bronze_account
+salience 50
+agenda-group "bronze"
+when
+  account: Account()
+  Number(this >= 10000 && this < 25000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 10000 && this < 25000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Bronze account: " + account);
+end
+------
+
+=== Laziness 3 and 6
+
+For rules inside the `laziness3` and `laziness6` packages, the idea is to show the usage of the attribute `salience` to illustrate RETE's fact propagation through the network with every insert, triggering re-evaluation of accumulate nodes with 3 or 6 rules.
+
+* With 3 rules: 
+
+[source,java]
+------
+rule gold_account
+salience 200
+when
+  account: Account()
+  Number(this >= 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Gold account: " + account);
+end
+
+rule silver_account
+salience 100
+when
+  account: Account()
+  Number(this >= 25000 && this < 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 25000 && this < 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Silver account: " + account);
+end
+
+rule bronze_account
+salience 50
+when
+  account: Account()
+  Number(this >= 10000 && this < 25000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 10000 && this < 25000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Bronze account: " + account);
+end
+------
+
+* With 6 rules: 
+
+[source,java]
+------
+rule gold_plus_account
+salience 250
+when
+  account: Account()
+  Number(this >= 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Gold Plus account: " + account);
+end
+
+rule gold_account
+salience 200
+when
+  account: Account()
+  Number(this >= 40000 && this < 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 40000 && this < 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Gold account: " + account);
+end
+
+rule silver_plus_account
+salience 150
+when
+  account: Account()
+  Number(this >= 30000 && this < 40000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 30000 && this < 40000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Silver plus account: " + account);
+end
+
+rule silver_account
+salience 100
+when
+  account: Account()
+  Number(this >= 20000 && this < 30000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 20000 && this < 30000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Silver account: " + account);
+end
+
+rule bronze_plus_account
+salience 50
+when
+  account: Account()
+  Number(this >= 10000 && this < 20000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 10000 && this < 20000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Bronze Plus account: " + account);
+end
+
+rule bronze_account
+salience 0
+when
+  account: Account()
+  Number(this >= 5000 && this < 10000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 5000 && this < 10000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  //System.out.println("Bronze account: " + account);
+end
+------
+
+
+=== Modification
+
+Illustrates different behavior of PHREAK vs. RETEOO on a larger set of facts with modification of a fact stored in working memory by using the method `modify`.
+
+[source,java]
+------
+rule gold_account
+salience 200
+lock-on-active
+when
+  account: Account()
+  Number(this >= 50000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 50000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  modify (account) {
+    setCategory(Category.GOLD)
+  }
+  //System.out.println("Gold account: " + account);
+end
+
+rule silver_account
+salience 100
+lock-on-active
+when
+  account: Account(category != Category.GOLD)
+  Number(this >= 25000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 25000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  modify (account) {
+    setCategory(Category.SILVER)
+  }
+  //System.out.println("Silver account: " + account);
+end
+
+rule bronze_account
+salience 50
+lock-on-active
+when
+  account: Account(category != Category.SILVER && category != Category.GOLD)
+  Number(this >= 10000) from accumulate(t: Transaction(source == account); sum(t.amount))
+  Number(this >= 10000) from accumulate(t: Transaction(target == account); sum(t.amount))
+then
+  modify (account) {
+    setCategory(Category.BRONZE)
+  }
+  //System.out.println("Bronze account: " + account);
+end
+------
+
 == Understanding JMH (Java Microbenchmarking Harness)
 
 JMH is a Java harness for building, running, and analysing nano/micro/milli/macro benchmarks written in Java and other languages targetting the JVM.
@@ -456,10 +677,41 @@ $ mvn clean install
 
 [source,console]
 -----
-$ java -jar target/benchmark-1.0.0-SNAPSHOT.jar
+$ java -jar target/benchmark-1.0.0-SNAPSHOT.jar -f 2 -t 1 -wi 5 -i 5
 -----
 
+NOTE: Values are provided as two fork executions, single thread, five warmup iterations and five iterations. Attetion that always the first warmup iteration takes more time since the `kmodule` is configured. This configuration will take ten minutes or more to finish. 
+
+* Feel free to play with parameters and execute more forks and iterations to get more accurate results. Note that a single warmup iteration is *not* enough for Class Loading and sometimes not all the branches of classes may load on the first iteration, so consider to use a reasonable value.
+
 == Checking Results
+
+The results below were taken from the following configurations:
+
+* Forks of 10
+* Warmup of 20 iterations.
+* Measurement of 20 iterations.
+* 1 Thread.
+* Benchmark mode: Average time, time/op
+
+Hardware used was:
+
+------
+Hardware Overview:
+  Model Name: MacBook Pro
+  Model Identifier: MacBookPro10,1
+  Processor Name: Intel Core i7
+  Processor Speed: 2.3 GHz
+  Number of Processors: 1
+  Total Number of Cores: 4
+  L2 Cache (per Core): 256 KB
+  L3 Cache: 6 MB
+  Memory: 8 GB
+  Boot ROM Version: MBP101.00EE.B07
+  SMC Version (system): 2.3f36
+------
+
+Complete execution took almost 3 hours. 
 
 [width="40%",frame="topbot",options="header"]
 |======================
